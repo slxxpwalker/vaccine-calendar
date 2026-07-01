@@ -835,37 +835,66 @@ function switchTab(tab) {
   document.getElementById('tabList').classList.toggle('hidden', tab !== 'list');
 }
 
-// ─── Export CSV ───────────────────────────────────────────────
+// ─── Export CSV (calendar grid format) ───────────────────────
 function exportCSV() {
   if (!currentData) return;
 
-  const visibleHouses = HOUSES.filter(h => {
-    for (const hm of currentData.values()) if (hm.has(h)) return true;
-    return false;
-  });
-
-  const rows = [];
-  rows.push(['วันที่', 'วัน (ไทย)', ...visibleHouses]);
-
   const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const dow = new Date(currentYear, currentMonth - 1, d).getDay();
-    const houseMap = currentData.get(dateStr);
+  const firstDow = new Date(currentYear, currentMonth - 1, 1).getDay();
 
-    const row = [dateStr, TH_DAYS_FULL[dow]];
-    for (const h of visibleHouses) {
-      if (houseMap && houseMap.has(h)) {
-        row.push([...houseMap.get(h)].join(' / '));
+  const csvRows = [];
+
+  // Title + day-of-week header
+  csvRows.push([`${TH_MONTHS[currentMonth-1]} ${currentYear} (พ.ศ. ${currentYear+543})`]);
+  csvRows.push([]);
+  csvRows.push(['', ...TH_DAYS_SHORT]);
+
+  let dayNum = 1 - firstDow;
+
+  while (dayNum <= daysInMonth) {
+    // Build 7-day window for this week
+    const weekDates = [];
+    const weekDateStrs = [];
+
+    for (let dow = 0; dow < 7; dow++, dayNum++) {
+      if (dayNum < 1 || dayNum > daysInMonth) {
+        weekDates.push('');
+        weekDateStrs.push(null);
       } else {
-        row.push('');
+        weekDates.push(dayNum);
+        weekDateStrs.push(
+          `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`
+        );
       }
     }
-    rows.push(row);
+
+    // Date number row
+    csvRows.push(['วันที่', ...weekDates]);
+
+    // One row per house that has any vaccine this week
+    const housesThisWeek = HOUSES.filter(h =>
+      weekDateStrs.some(ds => {
+        if (!ds) return false;
+        const hm = currentData.get(ds);
+        return hm && hm.has(h);
+      })
+    );
+
+    for (const h of housesThisWeek) {
+      const hRow = [h];
+      for (const ds of weekDateStrs) {
+        if (!ds) { hRow.push(''); continue; }
+        const hm = currentData.get(ds);
+        hRow.push(hm && hm.has(h) ? [...hm.get(h)].join(', ') : '');
+      }
+      csvRows.push(hRow);
+    }
+
+    csvRows.push([]); // blank separator between weeks
   }
 
-  const csvContent = '﻿' + rows.map(r =>
-    r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  const csvContent = '﻿' + csvRows.map(r =>
+    r.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')
   ).join('\r\n');
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
