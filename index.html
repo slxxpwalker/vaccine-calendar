@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ปฏิทินแผนวัคซีน</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(135deg, #2b6cb0, #2c7a7b);
+      color: white;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    header svg { width: 32px; height: 32px; flex-shrink: 0; }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p { font-size: 0.85rem; opacity: 0.85; margin-top: 2px; }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+
+    /* Upload */
+    .upload-card {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      border: 2px dashed #cbd5e0;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 24px;
+    }
+    .upload-card:hover, .upload-card.drag-over {
+      border-color: #2b6cb0;
+      background: #ebf4ff;
+    }
+    .upload-card svg { color: #a0aec0; margin-bottom: 12px; }
+    .upload-card h2 { font-size: 1.1rem; color: #4a5568; margin-bottom: 6px; }
+    .upload-card p { color: #718096; font-size: 0.875rem; }
+    .upload-card input[type=file] { display: none; }
+    .btn-upload {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 10px 24px;
+      background: #2b6cb0;
+      color: white;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+    }
+    .btn-upload:hover { background: #2c5282; }
+
+    .file-loaded {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: #f0fff4;
+      border: 1px solid #9ae6b4;
+      border-radius: 10px;
+      margin-bottom: 24px;
+    }
+    .file-loaded svg { color: #38a169; flex-shrink: 0; }
+    .file-loaded span { font-weight: 600; color: #276749; }
+    .file-loaded small { color: #718096; font-size: 0.8rem; }
+
+    /* Controls */
+    .controls-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-end;
+    }
+    .control-group { display: flex; flex-direction: column; gap: 6px; }
+    .control-group label { font-size: 0.8rem; font-weight: 600; color: #4a5568; text-transform: uppercase; letter-spacing: 0.05em; }
+    .control-group select, .control-group input {
+      padding: 9px 14px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: #2d3748;
+      background: white;
+      min-width: 140px;
+      cursor: pointer;
+    }
+    .control-group select:focus, .control-group input:focus {
+      outline: none;
+      border-color: #2b6cb0;
+    }
+    .btn-generate {
+      padding: 10px 28px;
+      background: #2b6cb0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-generate:hover { background: #2c5282; }
+    .btn-generate:disabled { background: #a0aec0; cursor: not-allowed; }
+    .btn-export {
+      padding: 10px 28px;
+      background: #276749;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-export:hover { background: #22543d; }
+    .btn-export:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    /* Calendar */
+    .calendar-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .calendar-title { font-size: 1.2rem; font-weight: 700; color: #2d3748; }
+    .calendar-subtitle { font-size: 0.875rem; color: #718096; margin-top: 2px; }
+
+    /* Monthly calendar grid */
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      min-width: 700px;
+    }
+    .day-header {
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 8px 4px;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .day-header.sun { color: #e53e3e; }
+    .day-header.sat { color: #3182ce; }
+    .day-cell {
+      min-height: 90px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 6px;
+      background: #fafafa;
+      font-size: 0.75rem;
+      position: relative;
+      vertical-align: top;
+      cursor: default;
+    }
+    .day-cell.today { background: #ebf8ff; border-color: #bee3f8; }
+    .day-cell.empty { background: #f7fafc; border-color: #edf2f7; }
+    .day-cell.has-event { background: white; }
+    .day-num {
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #4a5568;
+      margin-bottom: 4px;
+      display: inline-block;
+    }
+    .day-num.sun { color: #e53e3e; }
+    .day-num.sat { color: #3182ce; }
+    .vac-badge {
+      display: block;
+      padding: 2px 5px;
+      border-radius: 3px;
+      margin-bottom: 2px;
+      font-size: 0.65rem;
+      line-height: 1.3;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* House colors */
+    .h12 { background: #fed7d7; color: #822727; }
+    .h11 { background: #feebc8; color: #7b341e; }
+    .h10 { background: #fefcbf; color: #744210; }
+    .h9  { background: #c6f6d5; color: #1a4731; }
+    .h8  { background: #bee3f8; color: #1a365d; }
+    .h7  { background: #b794f4; color: #44337a; }
+    .h6  { background: #fbb6ce; color: #702459; }
+    .h5  { background: #e2e8f0; color: #2d3748; }
+    .h4  { background: #d6f5d6; color: #1a4731; }
+    .h3  { background: #fbd38d; color: #744210; }
+    .h2  { background: #9decf9; color: #065666; }
+    .h1  { background: #e9d8fd; color: #44337a; }
+
+    /* List table */
+    .list-table-wrap { overflow-x: auto; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    thead tr { background: #2b6cb0; color: white; }
+    thead th {
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tbody tr:nth-child(even) { background: #f7fafc; }
+    tbody tr:hover { background: #ebf4ff; }
+    tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    tbody td.date-cell { white-space: nowrap; font-weight: 600; }
+    tbody td.has-vac { color: #2c5282; font-weight: 500; }
+    .empty-cell { color: #cbd5e0; }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.75rem;
+    }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .hidden { display: none; }
+    .tab-bar {
+      display: flex;
+      gap: 2px;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      padding: 8px 18px;
+      border: none;
+      background: none;
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+      color: #718096;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+    }
+    .tab-btn.active { color: #2b6cb0; border-bottom-color: #2b6cb0; font-weight: 600; }
+    .tab-btn:hover:not(.active) { color: #4a5568; }
+
+    .stat-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .stat-chip {
+      background: #ebf4ff;
+      color: #2b6cb0;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    @media (max-width: 640px) {
+      header { padding: 16px; }
+      header h1 { font-size: 1.1rem; }
+      .controls-card { flex-direction: column; }
+      .day-cell { min-height: 70px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+    <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
+  </svg>
+  <div>
+    <h1>ปฏิทินแผนวัคซีน</h1>
+    <p>นำเข้าไฟล์ Excel แผนวัคซีนและส่งออกเป็น CSV รูปแบบปฏิทิน</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <div id="uploadArea" class="upload-card">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <h2>ลากไฟล์มาวางที่นี่</h2>
+    <p>หรือคลิกเพื่อเลือกไฟล์ Excel (.xlsx) แผนวัคซีน</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <label for="fileInput" class="btn-upload">เลือกไฟล์</label>
+  </div>
+
+  <div id="fileInfo" class="file-loaded hidden">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <div>
+      <span id="fileName">-</span><br>
+      <small id="fileDetail">-</small>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controlsCard" class="controls-card hidden">
+    <div class="control-group">
+      <label>Sheet (ปี พ.ศ.)</label>
+      <select id="sheetSelect"></select>
+    </div>
+    <div class="control-group">
+      <label>เดือน</label>
+      <select id="monthSelect">
+        <option value="1">มกราคม</option>
+        <option value="2">กุมภาพันธ์</option>
+        <option value="3">มีนาคม</option>
+        <option value="4">เมษายน</option>
+        <option value="5">พฤษภาคม</option>
+        <option value="6">มิถุนายน</option>
+        <option value="7">กรกฎาคม</option>
+        <option value="8">สิงหาคม</option>
+        <option value="9">กันยายน</option>
+        <option value="10">ตุลาคม</option>
+        <option value="11">พฤศจิกายน</option>
+        <option value="12">ธันวาคม</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>ปี ค.ศ.</label>
+      <select id="yearSelect"></select>
+    </div>
+    <button class="btn-generate" id="btnGenerate" onclick="generateCalendar()">สร้างปฏิทิน</button>
+    <button class="btn-export" id="btnExport" disabled onclick="exportCSV()">ส่งออก CSV</button>
+  </div>
+
+  <!-- Result -->
+  <div id="resultCard" class="calendar-card hidden">
+    <div class="calendar-header">
+      <div>
+        <div class="calendar-title" id="calTitle">-</div>
+        <div class="calendar-subtitle" id="calSubtitle">-</div>
+      </div>
+    </div>
+
+    <div class="stat-row" id="statRow"></div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('grid')">ปฏิทิน</button>
+      <button class="tab-btn" onclick="switchTab('list')">ตาราง</button>
+    </div>
+
+    <div id="tabGrid">
+      <div class="month-grid" id="calGrid"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div id="tabList" class="hidden">
+      <div class="list-table-wrap">
+        <table id="listTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const HOUSES = ['H.12','H.11','H.10','H.9','H.8','H.7','H.6','H.5','H.4','H.3','H.2','H.1'];
+const HOUSE_CLASS = { 'H.12':'h12','H.11':'h11','H.10':'h10','H.9':'h9','H.8':'h8','H.7':'h7','H.6':'h6','H.5':'h5','H.4':'h4','H.3':'h3','H.2':'h2','H.1':'h1' };
+const TH_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const TH_DAYS_FULL = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+const TH_DAYS_SHORT = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+let workbook = null;
+// vaccineMap: Map<sheetName, Map<dateStr(YYYY-MM-DD), Map<house, Set<vaccineName>>>>
+let vaccineMap = new Map();
+let currentData = null; // Map<dateStr, Map<house, Set<vac>>>
+let currentYear = null, currentMonth = null;
+
+// ─── Drag & Drop ────────────────────────────────────────────
+const uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+// ─── File Loading ────────────────────────────────────────────
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      workbook = XLSX.read(data, { type: 'array', cellStyles: true });
+      parseAllSheets();
+      showFileInfo(file);
+      buildControls();
+    } catch (err) {
+      alert('ไม่สามารถอ่านไฟล์ได้: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showFileInfo(file) {
+  document.getElementById('uploadArea').classList.add('hidden');
+  document.getElementById('fileInfo').classList.remove('hidden');
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileDetail').textContent =
+    `${workbook.SheetNames.length} Sheet: ${workbook.SheetNames.join(', ')} · ${(file.size/1024).toFixed(0)} KB`;
+}
+
+// ─── Parse Excel ─────────────────────────────────────────────
+function expandMergedCells(ws) {
+  const merges = ws['!merges'] || [];
+  for (const m of merges) {
+    const masterAddr = XLSX.utils.encode_cell(m.s);
+    const master = ws[masterAddr];
+    if (!master) continue;
+    for (let r = m.s.r; r <= m.e.r; r++) {
+      for (let c = m.s.c; c <= m.e.c; c++) {
+        if (r === m.s.r && c === m.s.c) continue;
+        ws[XLSX.utils.encode_cell({r, c})] = JSON.parse(JSON.stringify(master));
+      }
+    }
+  }
+}
+
+function parseAllSheets() {
+  vaccineMap.clear();
+  for (const sheetName of workbook.SheetNames) {
+    const ws = workbook.Sheets[sheetName];
+    expandMergedCells(ws);
+    vaccineMap.set(sheetName, parseSheet(ws));
+  }
+}
+
+function parseSheet(ws) {
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  // Read all values as formatted text (raw:false) so dates come as strings like "1-Jan-26"
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+
+  // Find header row: look for a row with at least 2 "H.X" patterns
+  let headerIdx = -1;
+  let houseColMap = {}; // house -> col index (0-based)
+
+  for (let i = 0; i < Math.min(6, rows.length); i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const found = {};
+    for (let c = 0; c < row.length; c++) {
+      if (!row[c]) continue;
+      const m = row[c].toString().match(/H\.(\d+)/);
+      if (m) found[`H.${m[1]}`] = c;
+    }
+    if (Object.keys(found).length >= 2) {
+      headerIdx = i;
+      houseColMap = found;
+      break;
+    }
+  }
+
+  if (headerIdx < 0) return new Map();
+
+  // Detect if this workbook has style info (cellStyles:true was used)
+  const stylesAvailable = sheetHasStyles(ws, range);
+
+  const dayMap = new Map();
+
+  for (let r = headerIdx + 1; r <= range.e.r; r++) {
+    const row = rows[r];
+    if (!row || !row[0]) continue;
+
+    // Parse date directly from the formatted text in col 0
+    const dateStr = parseDateString(row[0].toString());
+    if (!dateStr) continue;
+
+    for (const [house, colIdx] of Object.entries(houseColMap)) {
+      const val = row[colIdx];
+      if (!val) continue;
+      const valStr = val.toString().trim();
+      if (!valStr || /^\d+(\.\d+)?$/.test(valStr)) continue; // skip numbers (age)
+      if (/^ทีม\s/.test(valStr)) continue; // skip team annotations e.g. "ทีม NK"
+
+      // Use cell background color to confirm this is a vaccine entry
+      if (stylesAvailable) {
+        const addr = XLSX.utils.encode_cell({ r, c: colIdx });
+        if (!hasCellBackground(ws[addr])) continue;
+      }
+
+      if (!dayMap.has(dateStr)) dayMap.set(dateStr, new Map());
+      const dm = dayMap.get(dateStr);
+      if (!dm.has(house)) dm.set(house, new Set());
+      dm.get(house).add(valStr);
+    }
+  }
+
+  return dayMap;
+}
+
+// Check if any cell in the sheet has style info (to know if cellStyles worked)
+function sheetHasStyles(ws, range) {
+  for (let r = range.s.r; r <= Math.min(range.e.r, range.s.r + 20); r++) {
+    for (let c = range.s.c; c <= Math.min(range.e.c, range.s.c + 26); c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      if (cell && cell.s && cell.s.fgColor) return true;
+      if (cell && cell.s && cell.s.fill) return true;
+    }
+  }
+  return false;
+}
+
+// Check if a cell has a colored background (not white / not empty)
+function hasCellBackground(cell) {
+  if (!cell || !cell.s) return false;
+  const s = cell.s;
+
+  // SheetJS may nest fill under s.fill or directly on s
+  const fill = s.fill || s;
+  const patternType = fill.patternType || s.patternType;
+  if (!patternType || patternType === 'none') return false;
+
+  const fg = fill.fgColor || s.fgColor;
+  if (!fg) return false;
+
+  if (fg.theme !== undefined) return true; // theme color = always colored
+
+  if (fg.rgb) {
+    const rgb = fg.rgb.replace(/^FF/i, '').toUpperCase();
+    if (rgb === 'FFFFFF' || rgb === '000000') return false;
+    if (fg.rgb.toUpperCase() === '00000000') return false;
+    return true;
+  }
+
+  if (fg.indexed !== undefined) return fg.indexed !== 64; // 64 = auto/none
+
+  return false;
+}
+
+// Parse date from a text string — handles "1-Jan-26", "20/04/2019", "2026-01-01"
+const MONTH_ABBR = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+
+function parseDateString(str) {
+  str = str.toString().trim();
+  if (!str) return null;
+
+  // "D-MMM-YY" or "D-MMM-YYYY"  e.g. "1-Jan-26", "31-Dec-25"
+  let m = str.match(/^(\d{1,2})[\/\-]([A-Za-z]{3})[\/\-](\d{2,4})$/);
+  if (m) {
+    const day = parseInt(m[1]);
+    const month = MONTH_ABBR[m[2].toLowerCase()];
+    if (month === undefined) return null;
+    let year = parseInt(m[3]);
+    if (year < 100) year += 2000;
+    return `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+
+  // "DD/MM/YYYY"  e.g. "20/04/2019"
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const day = parseInt(m[1]);
+    const month = parseInt(m[2]) - 1;
+    const year = parseInt(m[3]);
+    return `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+
+  // "YYYY-MM-DD"  already in target format
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return str;
+
+  return null;
+}
+
+function fmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ─── Build Controls ──────────────────────────────────────────
+function buildControls() {
+  const sheetSel = document.getElementById('sheetSelect');
+  sheetSel.innerHTML = '<option value="__all__">ทุก Sheet</option>';
+  for (const name of workbook.SheetNames) {
+    sheetSel.innerHTML += `<option value="${name}">${name}</option>`;
+  }
+
+  // Detect available years from data
+  const years = new Set();
+  for (const sheetData of vaccineMap.values()) {
+    for (const dateStr of sheetData.keys()) {
+      years.add(parseInt(dateStr.split('-')[0]));
+    }
+  }
+  const yearSel = document.getElementById('yearSelect');
+  yearSel.innerHTML = '';
+  [...years].sort((a,b)=>b-a).forEach(y => {
+    yearSel.innerHTML += `<option value="${y}">${y}</option>`;
+  });
+
+  // Default to current month/year
+  const now = new Date();
+  document.getElementById('monthSelect').value = now.getMonth() + 1;
+  if ([...years].includes(now.getFullYear())) yearSel.value = now.getFullYear();
+
+  document.getElementById('controlsCard').classList.remove('hidden');
+}
+
+// ─── Generate Calendar ───────────────────────────────────────
+function generateCalendar() {
+  const sheetSel = document.getElementById('sheetSelect').value;
+  currentMonth = parseInt(document.getElementById('monthSelect').value);
+  currentYear = parseInt(document.getElementById('yearSelect').value);
+
+  // Merge data from selected sheets
+  const merged = new Map(); // dateStr -> Map<house, Set<vac>>
+
+  const sheetsToUse = sheetSel === '__all__'
+    ? workbook.SheetNames
+    : [sheetSel];
+
+  for (const sn of sheetsToUse) {
+    const sd = vaccineMap.get(sn);
+    if (!sd) continue;
+    for (const [dateStr, houseMap] of sd.entries()) {
+      const [y, m] = dateStr.split('-').map(Number);
+      if (y !== currentYear || m !== currentMonth) continue;
+      if (!merged.has(dateStr)) merged.set(dateStr, new Map());
+      const target = merged.get(dateStr);
+      for (const [house, vacs] of houseMap.entries()) {
+        if (!target.has(house)) target.set(house, new Set());
+        vacs.forEach(v => target.get(house).add(v));
+      }
+    }
+  }
+
+  currentData = merged;
+  renderResult();
+  document.getElementById('btnExport').disabled = false;
+}
+
+// ─── Render ──────────────────────────────────────────────────
+function renderResult() {
+  const card = document.getElementById('resultCard');
+  card.classList.remove('hidden');
+
+  document.getElementById('calTitle').textContent =
+    `${TH_MONTHS[currentMonth-1]} ${currentYear} (พ.ศ. ${currentYear+543})`;
+
+  const eventCount = [...currentData.values()].reduce((s, hm) => {
+    let c = 0;
+    hm.forEach(vs => c += vs.size);
+    return s + c;
+  }, 0);
+  const dayCount = currentData.size;
+  document.getElementById('calSubtitle').textContent =
+    `${dayCount} วันที่มีกำหนดฉีดวัคซีน · ${eventCount} รายการวัคซีน`;
+
+  renderStats();
+  renderGrid();
+  renderList();
+  renderLegend();
+}
+
+function renderStats() {
+  const statRow = document.getElementById('statRow');
+  const houseCounts = {};
+  for (const houseMap of currentData.values()) {
+    for (const [h, vacs] of houseMap.entries()) {
+      houseCounts[h] = (houseCounts[h] || 0) + vacs.size;
+    }
+  }
+  let html = '';
+  for (const h of HOUSES) {
+    if (houseCounts[h]) html += `<span class="stat-chip">${h}: ${houseCounts[h]} รายการ</span>`;
+  }
+  statRow.innerHTML = html || '<span class="stat-chip">ไม่มีข้อมูลวัคซีนในช่วงนี้</span>';
+}
+
+function renderGrid() {
+  const grid = document.getElementById('calGrid');
+  const today = fmtDate(new Date());
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+  const firstDow = new Date(currentYear, currentMonth - 1, 1).getDay(); // 0=Sun
+
+  let html = '';
+  // Day headers
+  TH_DAYS_SHORT.forEach((d, i) => {
+    const cls = i === 0 ? 'sun' : i === 6 ? 'sat' : '';
+    html += `<div class="day-header ${cls}">${d}</div>`;
+  });
+
+  // Empty cells before first day
+  for (let i = 0; i < firstDow; i++) {
+    html += `<div class="day-cell empty"></div>`;
+  }
+
+  // Day cells
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(currentYear, currentMonth - 1, d).getDay();
+    const dowCls = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+    const todayCls = dateStr === today ? 'today' : '';
+    const houseMap = currentData.get(dateStr);
+    const hasCls = houseMap && houseMap.size ? 'has-event' : '';
+
+    let badges = '';
+    if (houseMap) {
+      for (const h of HOUSES) {
+        if (!houseMap.has(h)) continue;
+        const vacs = [...houseMap.get(h)];
+        const label = `${h}: ${vacs.map(v => v.replace(/\s+/g,' ').trim()).join(', ')}`;
+        badges += `<span class="vac-badge ${HOUSE_CLASS[h]}" title="${label}">${h} – ${vacs[0].split(',')[0].trim()}${vacs.length > 1 || vacs[0].includes(',') ? '…' : ''}</span>`;
+      }
+    }
+
+    html += `<div class="day-cell ${todayCls} ${hasCls}">
+      <span class="day-num ${dowCls}">${d}</span>
+      ${badges}
+    </div>`;
+  }
+
+  // Fill remaining cells
+  const totalCells = firstDow + daysInMonth;
+  const remainder = (7 - (totalCells % 7)) % 7;
+  for (let i = 0; i < remainder; i++) html += `<div class="day-cell empty"></div>`;
+
+  grid.innerHTML = html;
+}
+
+function renderList() {
+  const thead = document.querySelector('#listTable thead');
+  const tbody = document.querySelector('#listTable tbody');
+
+  const visibleHouses = HOUSES.filter(h => {
+    for (const hm of currentData.values()) if (hm.has(h)) return true;
+    return false;
+  });
+
+  thead.innerHTML = `<tr>
+    <th>วันที่</th><th>วัน</th>
+    ${visibleHouses.map(h => `<th class="${HOUSE_CLASS[h]}" style="background:inherit">${h}</th>`).join('')}
+  </tr>`;
+
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+  let bodyHtml = '';
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(currentYear, currentMonth - 1, d).getDay();
+    const houseMap = currentData.get(dateStr);
+    const hasAny = houseMap && houseMap.size;
+
+    const thDay = TH_DAYS_FULL[dow];
+    const dowStyle = dow===0?'color:#e53e3e':dow===6?'color:#3182ce':'';
+
+    bodyHtml += `<tr style="${hasAny ? '' : 'opacity:0.5'}">
+      <td class="date-cell" style="${dowStyle}">${dateStr}</td>
+      <td style="${dowStyle}">${thDay}</td>
+      ${visibleHouses.map(h => {
+        if (!houseMap || !houseMap.has(h)) return `<td class="empty-cell">–</td>`;
+        const vacs = [...houseMap.get(h)].join('<br>');
+        return `<td class="has-vac">${vacs}</td>`;
+      }).join('')}
+    </tr>`;
+  }
+
+  tbody.innerHTML = bodyHtml;
+}
+
+function renderLegend() {
+  const HOUSE_BG = { h12:'#fed7d7',h11:'#feebc8',h10:'#fefcbf',h9:'#c6f6d5',h8:'#bee3f8',h7:'#b794f4',h6:'#fbb6ce',h5:'#e2e8f0',h4:'#d6f5d6',h3:'#fbd38d',h2:'#9decf9',h1:'#e9d8fd' };
+  let html = '';
+  for (const h of HOUSES) {
+    const cls = HOUSE_CLASS[h];
+    html += `<div class="legend-item"><div class="legend-dot" style="background:${HOUSE_BG[cls]}"></div>${h}</div>`;
+  }
+  document.getElementById('legend').innerHTML = html;
+}
+
+// ─── Tab Switch ───────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', (i===0 && tab==='grid') || (i===1 && tab==='list'));
+  });
+  document.getElementById('tabGrid').classList.toggle('hidden', tab !== 'grid');
+  document.getElementById('tabList').classList.toggle('hidden', tab !== 'list');
+}
+
+// ─── Export CSV ───────────────────────────────────────────────
+function exportCSV() {
+  if (!currentData) return;
+
+  const visibleHouses = HOUSES.filter(h => {
+    for (const hm of currentData.values()) if (hm.has(h)) return true;
+    return false;
+  });
+
+  const rows = [];
+  rows.push(['วันที่', 'วัน (ไทย)', ...visibleHouses]);
+
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(currentYear, currentMonth - 1, d).getDay();
+    const houseMap = currentData.get(dateStr);
+
+    const row = [dateStr, TH_DAYS_FULL[dow]];
+    for (const h of visibleHouses) {
+      if (houseMap && houseMap.has(h)) {
+        row.push([...houseMap.get(h)].join(' / '));
+      } else {
+        row.push('');
+      }
+    }
+    rows.push(row);
+  }
+
+  const csvContent = '﻿' + rows.map(r =>
+    r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  ).join('\r\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `vaccine-calendar-${currentYear}-${String(currentMonth).padStart(2,'0')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
